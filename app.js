@@ -546,7 +546,7 @@ async function init(){
     el('navstatus').textContent='ready — configure & start a heat';el('navstatus').className='ok';
   }catch(e){console.error(e);el('offline').style.display='flex';
     el('navstatus').textContent='backend offline';el('navstatus').className='bad';}
-  showTab('console');refreshConsole(null);animate();
+  showTab('console');animate();
 }
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);fitPanelCharts(state.activeTab);});
