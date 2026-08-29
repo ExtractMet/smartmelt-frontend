@@ -11,4 +11,4 @@
  *   (the earlier combined local mode).
  * • No trailing slash needed (it is trimmed automatically).
  * ==========================================================================*/
-window.SMARTMELT_API_BASE = "https://REPLACE-WITH-YOUR-BACKEND.onrender.com";
+window.SMARTMELT_API_BASE = "https://smartmelt-backend.onrender.com";
