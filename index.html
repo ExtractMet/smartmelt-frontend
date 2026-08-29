@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SmartMelt — Induction Furnace Digital Twin</title>
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="webgl"></div>
+  <nav id="topnav">
+    <span id="brand">SmartMelt<span class="dot">·</span>DT<small>Induction furnace digital twin</small></span>
+    <button class="tab active" data-tab="console">Operator Console</button>
+    <button class="tab" data-tab="trajectory">Process Trajectory</button>
+    <button class="tab" data-tab="physics">Physics &amp; Energy</button>
+    <button class="tab" data-tab="ekf">Virtual Sensor</button>
+    <button class="tab" data-tab="ml">Machine Learning</button>
+    <button class="tab" data-tab="drift">Drift Monitor</button>
+    <button class="tab" data-tab="chargemix">Charge-Mix</button>
+    <button class="tab" data-tab="economics">Economics</button>
+    <button class="tab" data-tab="heatlog">Heat Log</button>
+    <button class="tab" data-tab="settings">Settings</button>
+    <button class="tab" data-tab="validation">Validation</button>
+    <button class="tab" data-tab="about">About</button>
+    <span id="navstatus" class="warn">connecting…</span>
+  </nav>
+
+  <section id="panel-console" class="panel active">
+    <div id="clockwrap" class="ov"><div class="cap">heat time</div><div id="clock">00:00</div></div>
+    <div id="kpis" class="ov">
+      <div class="kpi hot"><div class="label">Bath &deg;C</div><div class="value" id="k-T">&mdash;</div><div class="sub" id="k-T-sub"></div></div>
+      <div class="kpi"><div class="label">Carbon %</div><div class="value" id="k-C">&mdash;</div><div class="sub" id="k-C-sub"></div></div>
+      <div class="kpi"><div class="label">Melted %</div><div class="value" id="k-melt">&mdash;</div><div class="sub" id="k-melt-sub"></div></div>
+      <div class="kpi"><div class="label">SEC kWh/t</div><div class="value" id="k-sec">&mdash;</div><div class="sub" id="k-sec-sub"></div></div>
+      <div class="kpi"><div class="label">Slag FeO %</div><div class="value" id="k-feo">&mdash;</div><div class="sub" id="k-feo-sub"></div></div>
+      <div class="kpi"><div class="label">Basicity B2</div><div class="value" id="k-b2">&mdash;</div><div class="sub">CaO/SiO&#8322;</div></div>
+      <div class="kpi"><div class="label">Power kW</div><div class="value" id="k-pow">&mdash;</div><div class="sub" id="k-pow-sub"></div></div>
+      <div class="kpi"><div class="label">Total kWh</div><div class="value" id="k-energy">&mdash;</div><div class="sub" id="k-energy-sub"></div></div>
+    </div>
+    <div id="advisories" class="ov"><div class="head">Advisory &mdash; live verdicts</div><div id="adv-list"></div></div>
+    <div id="minitrend" class="ov"><div class="head">Live trend &mdash; temperature &amp; melt</div><canvas id="ch-mini"></canvas></div>
+    <div id="addlog" class="ov"><div class="head">Addition log</div><div id="addlog-body"></div></div>
+  </section>
+
+  <section id="panel-trajectory" class="panel"><div class="sheet">
+    <h2>Process Trajectory</h2>
+    <div class="sub" id="traj-banner">Live process trajectories of the running heat &mdash; the same state the operator sees.</div>
+    <div class="grid6">
+      <div class="card"><h3>Temperatures</h3><canvas class="chart" id="tj-temp"></canvas></div>
+      <div class="card"><h3>Inventories &amp; dissolution</h3><canvas class="chart" id="tj-inv"></canvas></div>
+      <div class="card"><h3>Bath composition</h3><canvas class="chart" id="tj-comp"></canvas></div>
+      <div class="card"><h3>Slag chemistry &amp; basicity</h3><canvas class="chart" id="tj-slag"></canvas></div>
+      <div class="card"><h3>Power &amp; heat flows</h3><canvas class="chart" id="tj-pow"></canvas></div>
+      <div class="card"><h3>Energy &amp; specific consumption</h3><canvas class="chart" id="tj-ener"></canvas></div>
+    </div>
+  </div></section>
+
+  <section id="panel-physics" class="panel"><div class="sheet">
+    <h2>Physics &amp; Energy</h2>
+    <div class="sub">First-principles heat balance &mdash; where the energy goes and how fast reactions proceed. Computed by the validated Python engine.</div>
+    <div class="grid4">
+      <div class="card"><h3>Heat-flow breakdown</h3><canvas class="chart" id="ph-flow"></canvas></div>
+      <div class="card"><h3>Cumulative grid energy</h3><canvas class="chart" id="ph-split"></canvas></div>
+      <div class="card"><h3>Chemical power &mdash; (FeO)+[C]&rarr;Fe+CO</h3><canvas class="chart" id="ph-rate"></canvas></div>
+      <div class="card"><h3>Energy &amp; SEC vs theoretical floor</h3><canvas class="chart" id="ph-cum"></canvas></div>
+    </div>
+  </div></section>
+
+  <section id="panel-ekf" class="panel"><div class="sheet">
+    <h2>Virtual Sensor &mdash; Extended Kalman Filter</h2>
+    <div class="sub">A 34-state EKF sees only noisy immersion-dip temperatures and must converge bath temperature and hidden efficiency within one heat. Served from the engine's cached demo.</div>
+    <div class="grid4">
+      <div class="card"><h3>Bath temperature &mdash; true plant vs EKF estimate (±σ)</h3><canvas class="chart" id="ekf-T"></canvas></div>
+      <div class="card"><h3>Learned parameters (&eta;, UA scale)</h3><canvas class="chart" id="ekf-theta"></canvas></div>
+    </div>
+    <div class="card" style="margin-top:12px"><div class="kv" id="ekf-stats"></div></div>
+  </div></section>
+
+  <section id="panel-ml" class="panel"><div class="sheet">
+    <h2>Machine Learning &mdash; endpoint prediction</h2>
+    <div class="sub">A hybrid physics + GP-residual model predicts tap temperature and carbon on a held-out tail of the virtual-plant dataset. Trained by the real engine.</div>
+    <div class="grid4">
+      <div class="card"><h3>Predicted vs actual tap &deg;C</h3><canvas class="chart" id="ml-scatter"></canvas></div>
+      <div class="card"><h3>Predicted vs actual carbon %</h3><canvas class="chart" id="ml-cscatter"></canvas></div>
+    </div>
+    <div class="card" style="margin-top:12px"><div class="row" id="ml-pills"></div></div>
+  </div></section>
+
+  <section id="panel-drift" class="panel"><div class="sheet">
+    <h2>Drift Monitor</h2>
+    <div class="sub">Population-stability index (PSI) between a reference window and recent heats, flagging feature drift &mdash; a furnace or feedstock slowly changing. Computed by the engine's drift monitor.</div>
+    <div class="grid4">
+      <div class="card"><h3>Per-feature PSI (top drivers)</h3><canvas class="chart" id="dr-chart"></canvas></div>
+      <div class="card"><h3>Status</h3><div class="kv" id="dr-kv"></div>
+        <div class="note" id="dr-note"></div></div>
+    </div>
+  </div></section>
+
+  <section id="panel-chargemix" class="panel"><div class="sheet">
+    <h2>Charge-Mix Optimiser</h2>
+    <div class="sub">Least-cost scrap blend meeting tramp-element ceilings and the carbon window (LP), or evaluate a manual mix. Solved by the engine's charge-mix optimiser. Prices are editable (&#8377;/kg).</div>
+    <div class="row" style="margin-bottom:12px">
+      <div class="radio"><button id="cm-mode-opt" class="on">Optimise</button><button id="cm-mode-man">Manual mix</button></div>
+      <span class="pill">Target <span id="cm-target-lbl"></span> t</span>
+      <button class="act" id="cm-run">Recompute</button>
+    </div>
+    <div class="grid4">
+      <div class="card"><h3>Scrap library</h3>
+        <table class="tbl" id="cm-table"><thead><tr>
+          <th>Scrap</th><th>&#8377;/kg</th><th>C %</th><th>Cu %</th><th>kg</th></tr></thead>
+          <tbody id="cm-tbody"></tbody></table>
+      </div>
+      <div class="card"><h3>Result</h3>
+        <div class="kv" id="cm-result"></div>
+        <div class="note" id="cm-note"></div>
+        <canvas class="chart sm" id="cm-bars" style="margin-top:10px"></canvas>
+      </div>
+    </div>
+  </div></section>
+
+  <section id="panel-economics" class="panel"><div class="sheet">
+    <h2>Economics &amp; CO&#8322;</h2>
+    <div class="sub">Per-heat energy cost, CO&#8322; footprint (grid factor 0.712 tCO&#8322;/MWh) and annualised savings vs the baseline specific energy, from the engine's economics model.</div>
+    <div class="grid4">
+      <div class="card"><h3>Cost &amp; emissions this heat</h3><div class="kv" id="ec-kv"></div></div>
+      <div class="card"><h3>Energy vs baseline</h3><canvas class="chart" id="ec-chart"></canvas></div>
+    </div>
+  </div></section>
+
+  <section id="panel-heatlog" class="panel"><div class="sheet">
+    <h2>Heat Log &mdash; audit trail</h2>
+    <div class="sub">Every event &mdash; heat start, each addition with mass/time, and tap with the endpoint.</div>
+    <div class="row" style="margin-bottom:10px">
+      <button class="act" id="hl-export">Export CSV</button>
+      <button class="act" id="hl-clear">Clear</button>
+    </div>
+    <div class="card"><table class="tbl" id="hl-table"><thead><tr>
+      <th>Clock</th><th>Heat min</th><th>Event</th><th>Detail</th></tr></thead>
+      <tbody id="hl-tbody"></tbody></table></div>
+  </div></section>
+
+  <section id="panel-settings" class="panel"><div class="sheet">
+    <h2>Settings &mdash; plant &amp; process configuration</h2>
+    <div class="sub">Aim and economic basis used by the advisory, endpoint checks and economics. Adjust to match your plant, then Apply.</div>
+    <div class="grid4">
+      <div class="card"><h3>Configuration</h3>
+        <div class="field"><label>Tap temperature aim (&deg;C)</label><input id="set-tap" type="number"></div>
+        <div class="field"><label>Carbon aim &mdash; minimum (%)</label><input id="set-clo" type="number" step="0.01"></div>
+        <div class="field"><label>Carbon aim &mdash; maximum (%)</label><input id="set-chi" type="number" step="0.01"></div>
+        <div class="field"><label>Rated power (kW)</label><input id="set-rated" type="number"></div>
+        <div class="field"><label>Electricity tariff (&#8377;/kWh)</label><input id="set-tariff" type="number" step="0.1"></div>
+        <div class="field"><label>Grid emission factor (tCO&#8322;/MWh)</label><input id="set-ef" type="number" step="0.001"></div>
+        <div class="field"><label>Baseline SEC (kWh/t)</label><input id="set-base" type="number"></div>
+        <div class="row"><button class="act primary" id="set-apply">Apply settings</button><span class="pill" id="set-status"></span></div>
+      </div>
+      <div class="card"><h3>Active configuration</h3><div class="kv" id="set-active"></div>
+        <div class="note">These feed the live advisory verdicts, the tap-temperature check and the Economics tab. The physics engine is unchanged; changing the tap aim or carbon window re-scores the running heat.</div>
+      </div>
+    </div>
+  </div></section>
+
+  <section id="panel-validation" class="panel"><div class="sheet">
+    <h2>Validation</h2>
+    <div class="sub">The physics engine reproduces the validated SmartMelt targets. Verified constants (from the plant config) and the live characteristic-heat endpoint.</div>
+    <div class="grid4">
+      <div class="card"><h3>Verified constants</h3><div class="kv" id="val-const"></div></div>
+      <div class="card"><h3>Characteristic heat</h3><div class="kv" id="val-heat"></div>
+        <div class="note">Run a heat on the Console and this updates with the live endpoint. The (FeO)+[C]&rarr;Fe+CO mass balance is verified: mill scale or iron ore added to a molten bath lowers carbon and returns iron.</div>
+      </div>
+    </div>
+  </div></section>
+
+  <section id="panel-about" class="panel"><div class="sheet">
+    <h2>About SmartMelt Digital Twin</h2>
+    <div class="sub">An industrial digital-twin package: a Python backend running the validated SmartMelt engine, with an HTML + CSS + Three.js frontend.</div>
+    <div class="grid4">
+      <div class="card"><h3>Architecture</h3><div class="kv">
+        <div class="k">Frontend</div><div class="v">HTML + CSS + Three.js</div>
+        <div class="k">Backend</div><div class="v">Python (FastAPI)</div>
+        <div class="k">Engine</div><div class="v">SmartMelt (validated)</div>
+        <div class="k">Transport</div><div class="v">JSON over HTTP</div>
+        <div class="k">Furnace</div><div class="v">MSME induction (IF)</div>
+        <div class="k">Owner</div><div class="v">Extractmet Pvt Ltd</div>
+      </div></div>
+      <div class="card"><h3>Notes</h3><div class="note" style="margin-top:0">
+        Every tab is computed by the same Python engine the Streamlit application uses,
+        so results are identical by construction. The browser renders the melt as a live
+        3D furnace and plays back the engine's frames; the operator controls (charge, power,
+        chemistry, tap aim, additions, speed) drive new engine runs. Advisory only &mdash;
+        not a closed-loop plant controller.
+      </div></div>
+    </div>
+  </div></section>
+
+  <div id="offline"><div class="box"><h3>Backend not reachable</h3>
+    <div class="note" style="margin-top:0">The SmartMelt engine server is not responding. Start it with
+    <code>uvicorn server:app --port 8000</code> from the <code>backend/</code> folder, then reload this page.</div></div></div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.js",
+      "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js",
+      "lil-gui": "./vendor/lil-gui.esm.js"
+    }
+  }
+  </script>
+  <!-- ☆ SPLIT-DEPLOY: set your backend (Render) URL in config.js -->
+  <script src="./config.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
