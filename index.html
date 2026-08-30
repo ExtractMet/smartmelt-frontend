@@ -33,7 +33,7 @@
       <div class="kpi"><div class="label">Melted %</div><div class="value" id="k-melt">&mdash;</div><div class="sub" id="k-melt-sub"></div></div>
       <div class="kpi"><div class="label">SEC kWh/t</div><div class="value" id="k-sec">&mdash;</div><div class="sub" id="k-sec-sub"></div></div>
       <div class="kpi"><div class="label">Slag FeO %</div><div class="value" id="k-feo">&mdash;</div><div class="sub" id="k-feo-sub"></div></div>
-      <div class="kpi"><div class="label">Basicity B2</div><div class="value" id="k-b2">&mdash;</div><div class="sub">CaO/SiO&#8322;</div></div>
+      <div class="kpi"><div class="label">Basicity B2</div><div class="value" id="k-b2">&mdash;</div><div class="sub" id="k-b2-sub">CaO/SiO&#8322;</div></div>
       <div class="kpi"><div class="label">Power kW</div><div class="value" id="k-pow">&mdash;</div><div class="sub" id="k-pow-sub"></div></div>
       <div class="kpi"><div class="label">Total kWh</div><div class="value" id="k-energy">&mdash;</div><div class="sub" id="k-energy-sub"></div></div>
     </div>
@@ -196,6 +196,34 @@
     <div class="note" style="margin-top:0">The SmartMelt engine server is not responding. Start it with
     <code>uvicorn server:app --port 8000</code> from the <code>backend/</code> folder, then reload this page.</div></div></div>
 
+  <!-- ☆ startup watchdog: surfaces script/module errors on screen (deploy diagnostics) -->
+  <script>
+  (function(){
+    function box(title,msg){
+      var o=document.getElementById('offline'); if(!o) return;
+      var b=o.querySelector('.box');
+      if(b) b.innerHTML='<h3>'+title+'</h3><div class="note" style="margin-top:0;white-space:pre-wrap;word-break:break-word">'+msg+'</div>';
+      o.style.display='flex';
+    }
+    window.addEventListener('error',function(e){
+      var m=(e&&(e.message||(e.error&&e.error.message)))||'Unknown script error';
+      var where=e&&e.filename?('\n'+e.filename+(e.lineno?(' :'+e.lineno):'')):'';
+      box('The app hit a script error', m+where+'\n\nOpen the browser console (F12 ▸ Console) and send the red text.');
+    },true);
+    window.addEventListener('unhandledrejection',function(e){
+      var r=e&&e.reason; box('The app hit an error', String((r&&(r.message||r))||'Unknown error'));
+    });
+    setTimeout(function(){
+      if(!window.__smartmeltReady){
+        box('The app did not start',
+          'The 3D console did not initialise within a few seconds. Most likely:\n'+
+          '• your browser is too old for ES-module import maps — update Chrome / Edge / Firefox / Safari;\n'+
+          '• a file failed to load — hard-refresh with Ctrl/Cmd + Shift + R.\n\n'+
+          'Open the browser console (F12 ▸ Console) and send the red error text.');
+      }
+    },7000);
+  })();
+  </script>
   <script type="importmap">
   {
     "imports": {

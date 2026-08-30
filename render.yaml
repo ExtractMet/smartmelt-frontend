@@ -1,18 +1,8 @@
-# ☆ NEW — Render Blueprint to host this frontend as a Static Site.
-# Use this if you want BOTH repos on Render (backend = Web Service, this = Static Site),
-# instead of (or in addition to) GitHub Pages. Nothing to build — plain static files.
-#
-# Dashboard equivalent:  New ▸ Static Site ▸ pick this repo ▸
-#   Build Command: (leave empty)   Publish Directory: .   Branch: main
+# Optional: host this frontend on Render as a Static Site instead of GitHub Pages.
 services:
   - type: web
     name: smartmelt-frontend
-    runtime: static          # older Render accounts: use `env: static`
+    runtime: static
     branch: main
     buildCommand: ""
     staticPublishPath: .
-    pullRequestPreviewsEnabled: false
-    headers:
-      - path: /*
-        name: Cache-Control
-        value: "public, max-age=600"

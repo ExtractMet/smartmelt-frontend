@@ -21,21 +21,34 @@ import GUI from 'lil-gui';
 // ★ SPLIT-DEPLOY: backend runs on a different origin (Render). All calls use an
 // absolute base URL provided by config.js. Empty string => same-origin (local combined mode).
 const API_BASE=(window.SMARTMELT_API_BASE||'').replace(/\/+$/,'');
+async function _req(path,opts){
+  let res;
+  try{ res=await fetch(API_BASE+path,opts); }
+  catch(err){ throw new Error('Cannot reach the backend at '+(API_BASE||'this site')+path+
+    '. If it is on a free host it may be asleep — wait ~30–60 s and retry. ('+err.message+')'); }
+  if(!res.ok){ let extra=''; try{ extra=(await res.text()).slice(0,160); }catch(e){}
+    throw new Error('Backend error '+res.status+' on '+path+(extra?(' — '+extra):'')); }
+  try{ return await res.json(); }
+  catch(err){ throw new Error('Unexpected (non-JSON) reply from '+path+'. ('+err.message+')'); }
+}
 const API = {
-  async config(){return (await fetch(API_BASE+'/api/config')).json();},
-  async simulate(body){return (await fetch(API_BASE+'/api/simulate',{method:'POST',
-    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();},
-  async mixOpt(body){return (await fetch(API_BASE+'/api/chargemix/optimize',{method:'POST',
-    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();},
-  async mixEval(body){return (await fetch(API_BASE+'/api/chargemix/evaluate',{method:'POST',
-    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();},
-  async ekf(){return (await fetch(API_BASE+'/api/ekf')).json();},
-  async ml(){return (await fetch(API_BASE+'/api/ml')).json();},
-  async drift(){return (await fetch(API_BASE+'/api/drift')).json();},
-  async econ(body){return (await fetch(API_BASE+'/api/economics',{method:'POST',
-    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();},
-  async validation(){return (await fetch(API_BASE+'/api/validation')).json();},
+  config(){return _req('/api/config');},
+  simulate(body){return _req('/api/simulate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});},
+  mixOpt(body){return _req('/api/chargemix/optimize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});},
+  mixEval(body){return _req('/api/chargemix/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});},
+  ekf(){return _req('/api/ekf');},
+  ml(){return _req('/api/ml');},
+  drift(){return _req('/api/drift');},
+  econ(body){return _req('/api/economics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});},
+  validation(){return _req('/api/validation');},
 };
+// on-screen fatal error (so problems are visible without opening the console)
+function showFatal(title,msg){
+  const ov=document.getElementById('offline'); if(!ov) return;
+  const b=ov.querySelector('.box');
+  if(b) b.innerHTML='<h3>'+title+'</h3><div class="note" style="margin-top:0;white-space:pre-wrap;word-break:break-word">'+String(msg)+'</div>';
+  ov.style.display='flex';
+}
 
 /* ===================== A2. CHART HELPERS (labelled 2-D canvas) =========== */
 const COL={molten:'#ff6a34',hi:'#ffd166',steel:'#4fa8d8',green:'#33d17a',
@@ -176,7 +189,7 @@ fS.add(state,'tap_aim',1550,1700,5).name('Tap aim (°C)').onChange(syncSettingsI
 const fO=gui.addFolder('Operation');
 fO.add({start:()=>startHeat()},'start').name('▶ Start heat');
 fO.add({tap:()=>tapHeat()},'tap').name('⏏ Tap heat');
-fO.add(state,'speed',{'Pause ⏸':0,'Real-time 1×':1,'10× real-time':10,'100× real-time':100,'1000× real-time':1000}).name('Playback speed');
+fO.add(state,'speed',{'Pause ⏸':0,'Real-time 1×':1,'5× real-time':5,'10× real-time':10,'100× real-time':100,'1000× real-time':1000}).name('Playback speed');
 const fA=gui.addFolder('Add material (during heat)');
 fA.add(state,'material',[]).name('Material'); // options filled after config loads
 fA.add(state,'mass',5,500,1).name('Mass (kg)');
@@ -200,7 +213,8 @@ function showTab(name){state.activeTab=name;
 tabButtons.forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 
 /* ===================== C1. CONSOLE OVERLAY ============================= */
-function setKPI(id,val,sub){el('k-'+id).textContent=val;if(sub!=null)el('k-'+id+'-sub').textContent=sub;}
+function setKPI(id,val,sub){const v=el('k-'+id);if(v)v.textContent=val;
+  if(sub!=null){const s=el('k-'+id+'-sub');if(s)s.textContent=sub;}}
 function refreshConsole(f){
   if(!f){['T','C','melt','sec','feo','b2','pow','energy'].forEach(k=>setKPI(k,'—',''));
     el('clock').textContent='00:00';el('adv-list').innerHTML='';return;}
@@ -261,17 +275,22 @@ el('set-apply').addEventListener('click',async()=>{
 
 /* ===================== C4. PANEL DISPATCH ============================= */
 function fitPanelCharts(name){const p=panels[name];if(!p)return;p.querySelectorAll('canvas').forEach(fitCanvas);}
-function renderPanel(name){switch(name){
-  case 'trajectory':renderTrajectory();break;
-  case 'physics':renderPhysics();break;
-  case 'ekf':renderEKF();break;
-  case 'ml':renderML();break;
-  case 'drift':renderDrift();break;
-  case 'chargemix':renderChargeMix();break;
-  case 'economics':renderEconomics();break;
-  case 'validation':renderValidation();break;
-  case 'heatlog':renderHeatLog();break;
-  case 'settings':syncSettingsInputs();renderSettingsActive();break;}}
+function _renderPanel(name){switch(name){
+  case 'trajectory':return renderTrajectory();
+  case 'physics':return renderPhysics();
+  case 'ekf':return renderEKF();
+  case 'ml':return renderML();
+  case 'drift':return renderDrift();
+  case 'chargemix':return renderChargeMix();
+  case 'economics':return renderEconomics();
+  case 'validation':return renderValidation();
+  case 'heatlog':return renderHeatLog();
+  case 'settings':syncSettingsInputs();return renderSettingsActive();}}
+function renderPanel(name){
+  try{const r=_renderPanel(name);
+    if(r&&typeof r.catch==='function')r.catch(e=>{console.error(e);
+      el('navstatus').textContent='could not load '+name;el('navstatus').className='warn';});
+  }catch(e){console.error(e);}}
 
 /* ===================== D1. TRAJECTORY & PHYSICS ======================= */
 function renderTrajectory(){const fr=upto();if(!fr.length){el('traj-banner').textContent='No heat yet — start one on the Operator Console.';}
@@ -508,13 +527,18 @@ function updateNavStatus(f){if(!f){el('navstatus').textContent='ready — config
 function simBody(){return {charge_t:state.charge_t,power_kW:state.power_kW,C_pct:state.C_pct,Cu_pct:state.Cu_pct,
   tap_aim:state.tap_aim,clo:state.clo,chi:state.chi,baseline:state.baseline,dt:5.0,t_end_min:92.0,additions:state.additions};}
 async function startHeat(){
+ try{
   state.additions=[];state.tapped=false;state.ml=state.drift=null;
   el('navstatus').textContent='running heat…';el('navstatus').className='warn';
   const r=await API.simulate(simBody());state.frames=r.frames||[];state.floor_sec=r.floor_sec||state.floor_sec;
+  if(!state.frames.length){throw new Error('the backend returned no frames');}
   state.frameDtSec=state.frames.length>1?(state.frames[1].t_min-state.frames[0].t_min)*60:5;
   state.idx=0;state.playTime=0;state.running=true;furnace.rotation.y=0;
   logEvent('start',`${state.charge_t} t · ${state.power_kW} kW · C ${state.C_pct}% · aim ${state.tap_aim}°C`);
   if(state.activeTab!=='console')renderPanel(state.activeTab);
+ }catch(e){console.error(e);state.running=false;
+  el('navstatus').textContent='Start failed';el('navstatus').className='bad';
+  showFatal('Start heat failed',(e&&e.message)||e);}
 }
 async function rerunHeat(keepIdx){const keepT=state.playTime;
   const r=await API.simulate(simBody());state.frames=r.frames||[];
@@ -544,10 +568,14 @@ async function init(){
     gui.controllersRecursive().forEach(ct=>ct.updateDisplay());
     syncSettingsInputs();renderSettingsActive();
     el('navstatus').textContent='ready — configure & start a heat';el('navstatus').className='ok';
-  }catch(e){console.error(e);el('offline').style.display='flex';
-    el('navstatus').textContent='backend offline';el('navstatus').className='bad';}
-  showTab('console');animate();
+  }catch(e){console.error(e);
+    showFatal('Could not load from the backend',
+      ((e&&e.message)||e)+'\n\nThe page is loaded, but it could not fetch its configuration.');
+    el('navstatus').textContent='error — see message';el('navstatus').className='bad';}
+  window.__smartmeltReady=true;                 // tell the startup watchdog the app wired up
+  showTab('console');refreshConsole(null);animate();
 }
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);fitPanelCharts(state.activeTab);});
-init();
+init().catch(function(e){console.error(e);
+  showFatal('Startup error',(e&&(e.stack||e.message))||String(e));});
