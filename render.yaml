@@ -1,4 +1,3 @@
-# Optional: host this frontend on Render as a Static Site instead of GitHub Pages.
 services:
   - type: web
     name: smartmelt-frontend

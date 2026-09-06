@@ -1,27 +1,12 @@
-# SmartMelt — Frontend (GitHub Pages)
+# SmartMelt Studio — Frontend (GitHub Pages) · repo 2 of 2
 
-HTML + CSS + Three.js operator console. **Repository 2 of 2.** Static site published on
-GitHub Pages; calls the backend API (repo *smartmelt-backend*, on Render) cross-origin.
+HTML + CSS + Plotly.js + Three.js — the 12-tab operator/manager console. Static
+site; calls the backend API (repo *smartmelt-backend*, on Render) cross-origin.
 
 ## Deploy
-1. Edit **`config.js`** → set your Render backend URL:
-   ```js
-   window.SMARTMELT_API_BASE = "https://smartmelt-api.onrender.com";
-   ```
+1. Edit **`config.js`** → your Render backend URL.
 2. Push to a GitHub repo (branch `main`).
-3. Repo ▸ **Settings ▸ Pages ▸ Source = "GitHub Actions"** (the included workflow deploys
-   on every push). Live at `https://<your-username>.github.io/<repo>/`.
-   *(Alternative: Source = Deploy from a branch ▸ main ▸ /root; then delete the workflow.)*
-4. On the backend, set `ALLOWED_ORIGINS=https://<your-username>.github.io` (or keep `*`).
+3. Repo ▸ **Settings ▸ Pages ▸ Source = "GitHub Actions"** (bundled workflow deploys on push).
+4. On the backend set `ALLOWED_ORIGINS=https://<user>.github.io` (or keep `*`).
 
-*(Optional: host on Render as a Static Site instead — see `render.yaml`.)*
-
-## Playback speeds
-Pause · Real-time 1× · **5×** · 10× · 100× · 1000× real-time.
-
-## Preview locally
-```bash
-python3 -m http.server 5173     # open http://localhost:5173/  (set config.js to your API)
-```
-
-© Extractmet Pvt Ltd — advisory-only. Plant data anonymised as *Industry-X*.
+Preview locally: `python3 -m http.server 5173` → http://localhost:5173/ (config.js → your API).
